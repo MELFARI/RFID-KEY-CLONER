@@ -1,0 +1,4 @@
+# Python dependencies for RFID Cloner Studio
+
+customtkinter>=5.2.0
+pyserial>=3.5
