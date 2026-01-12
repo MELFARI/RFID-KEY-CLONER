@@ -15,51 +15,80 @@
 #define SS_PIN 10
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
+String inputBuffer = "";
+
+// Function prototypes
+void handleCommand(String command);
+void checkHardware();
+void readUID();
+void writeUID(String newUID);
 
 void setup() {
-    // TODO: Initialize Serial communication (115200 baud)
-    // TODO: Initialize SPI bus
-    // TODO: Initialize MFRC522 reader
+    Serial.begin(115200);
+    while (!Serial);
+    SPI.begin();
+    mfrc522.PCD_Init();
+    delay(100);
 }
 
 void loop() {
-    // TODO: Check for incoming Serial commands and dispatch to handlers
+    while (Serial.available()) {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r') {
+            if (inputBuffer.length() > 0) {
+                handleCommand(inputBuffer);
+                inputBuffer = "";
+            }
+        } else {
+            inputBuffer += c;
+        }
+    }
 }
 
 void handleCommand(String command) {
-    /**
-     * Parse and execute incoming commands:
-     *   - "CHECK_HW" -> Run PCD_DumpVersionToSerial(), return "READY" or "HW_FAILURE"
-     *   - "READ_UID" -> Wait for card, read UID, return "UID:XXXXXXXXXXXX"
-     *   - "WRITE_UID:XXXX" -> Attempt magic backdoor write to blank card
-     */
-    // TODO: Implement command parsing and routing
+    command.trim();
+    if (command == "CHECK_HW") {
+        checkHardware();
+    } else if (command == "READ_UID") {
+        readUID();
+    } else if (command.startsWith("WRITE_UID:")) {
+        String newUID = command.substring(10);
+        writeUID(newUID);
+    } else {
+        Serial.println("ERROR_UNKNOWN_CMD");
+    }
 }
 
 void checkHardware() {
-    /**
-     * Verify MFRC522 is connected and responding.
-     * Use mfrc522.PCD_DumpVersionToSerial() or version register check.
-     * Send "READY" or "HW_FAILURE" via Serial.
-     */
-    // TODO: Implement hardware self-test
+    byte v = mfrc522.PCD_ReadRegister(MFRC522::VersionReg);
+    if (v == 0x00 || v == 0xFF) {
+        Serial.println("HW_FAILURE");
+    } else {
+        Serial.println("READY");
+    }
 }
 
 void readUID() {
-    /**
-     * Wait for PICC (card) to be presented.
-     * Read the UID bytes from the card.
-     * Send "UID:XXXXXXXXXXXX" (hex string) via Serial.
-     * Handle timeout and read errors.
-     */
-    // TODO: Implement UID reading
+    unsigned long startTime = millis();
+    const unsigned long timeout = 5000; // 5 second timeout
+    
+    while (millis() - startTime < timeout) {
+        if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+            Serial.print("UID:");
+            for (byte i = 0; i < mfrc522.uid.size; i++) {
+                if (mfrc522.uid.uidByte[i] < 0x10) Serial.print("0");
+                Serial.print(mfrc522.uid.uidByte[i], HEX);
+            }
+            Serial.println();
+            mfrc522.PICC_HaltA();
+            return;
+        }
+        delay(50);
+    }
+    Serial.println("ERROR_TIMEOUT");
 }
 
 void writeUID(String newUID) {
-    /**
-     * Attempt to write a new UID to a "magic" Chinese clone card.
-     * Use backdoor commands (halt, wake with 0x40, write block 0).
-     * Send "SUCCESS" or "ERROR_LOCKED" via Serial.
-     */
     // TODO: Implement magic backdoor UID write for CUID/Gen1a cards
+    Serial.println("ERROR_NOT_IMPLEMENTED");
 }
